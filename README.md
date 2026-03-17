@@ -1,9 +1,10 @@
-# Chrome Extension – Page Summarizer (ChatGPT / Claude)
+# Chrome Extension – Page Summarizer (ChatGPT / Claude / DeepSeek)
 
 Chrome extension that reads the current page’s visible text and generates a summary using either:
 
 - OpenAI (ChatGPT) API, or
 - Anthropic (Claude) API
+- DeepSeek API
 
 ## Installation
 

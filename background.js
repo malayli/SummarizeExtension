@@ -30,6 +30,55 @@ function truncateForModel(text, maxChars) {
   return s.slice(0, maxChars);
 }
 
+async function summarizeWithDeepSeek({ title, url, text, language }) {
+  const { apiKey } = await getSettings();
+
+  if (!apiKey)
+  {return { ok: false, error: "Missing DeepSeek API key." };}
+
+  const lang = languageInstruction(language);
+
+  const prompt = [
+    `Summarize the following web page in ${lang}.`,
+    "Return:",
+    "- 5 bullet key points",
+    "- 1 short paragraph summary",
+    "- 3 action items (if applicable)",
+    "",
+    `Title: ${title}`,
+    `URL: ${url}`,
+    "",
+    "Content:",
+    truncateForModel(text, 12000)
+  ].join("\n");
+
+  const resp = await fetch("https://api.deepseek.com/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages: [
+        { role: "user", content: prompt }
+      ],
+      stream: false,
+      max_tokens: 600
+    })
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text();
+    return { ok: false, error: t };
+  }
+
+  const data = await resp.json();
+  const out = data?.choices?.[0]?.message?.content ?? "";
+
+  return { ok: true, summary: String(out || "").trim() };
+}
+
 async function summarizeWithOpenAI({ title, url, text, language }) {
   const { apiKey } = await getSettings();
 
@@ -153,6 +202,9 @@ chrome.runtime.onMessage.addListener((msg,_,sendResponse)=>{
 
       if(provider==="anthropic")
       {return summarizeWithAnthropic(msg.payload);}
+
+      if (provider === "deepseek")
+      {return summarizeWithDeepSeek(msg.payload);}
 
       return summarizeWithOpenAI(msg.payload);
 
