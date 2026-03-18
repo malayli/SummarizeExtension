@@ -90,7 +90,7 @@ async function summarizeWithDeepSeek({ title, url, text, language }) {
   return { ok: true, summary: String(out || "").trim() };
 }
 
-async function summarizeWithOpenAI({ title, url, text, language }) {
+async function summarizeWithOpenAI({ title, url, text, language }, modelVersion) {
   const { apiKey } = await getSettings();
   if (!apiKey) {
     return { ok: false, error: "Missing OpenAI API key." };
@@ -98,14 +98,12 @@ async function summarizeWithOpenAI({ title, url, text, language }) {
 
   const resp = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-
     body: JSON.stringify({
-      model: "gpt-5.4",
+      model: `gpt-${modelVersion}`,
       input: [
         { role: "user", content: promptWithLanguage({ language, title, text, url }) }
       ],
@@ -184,7 +182,7 @@ chrome.runtime.onMessage.addListener((msg,_,sendResponse)=>{
 
         case "openai":
         default:
-          return summarizeWithOpenAI(msg.payload);
+          return summarizeWithOpenAI(msg.payload, "5.4");
       }
     })()
       .then(sendResponse)
