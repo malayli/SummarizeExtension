@@ -4,6 +4,42 @@ import { getTimezoneLabel } from './timezone.js';
 import { getSettings } from './settings.js';
 import { getActiveTab } from './tab.js';
 
+const SUMMARY_CACHE_TTL_MS = 48 * 60 * 60 * 1000;
+
+function makeSummaryCacheKey({ provider, language, url }) {
+  const safeUrl = String(url || "").split("#")[0];
+  return `summary:${provider}:${language}:${safeUrl}`;
+}
+
+async function getCachedSummary({ provider, language, url }) {
+  const key = makeSummaryCacheKey({ provider, language, url });
+  const data = await chrome.storage.local.get(key);
+  const entry = data[key];
+
+  if (!entry) { return null; }
+
+  const { summary, createdAt } = entry;
+
+  if (!summary || !createdAt) { return null; }
+
+  const age = Date.now() - createdAt;
+
+  if (age > SUMMARY_CACHE_TTL_MS) { return null; }
+
+  return summary;
+}
+
+async function setCachedSummary({ provider, language, url, summary }) {
+  const key = makeSummaryCacheKey({ provider, language, url });
+
+  await chrome.storage.local.set({
+    [key]: {
+      summary,
+      createdAt: Date.now()
+    }
+  });
+}
+
 async function setProvider(provider) {
   await chrome.storage.local.set({[SETTINGS_STORAGE_KEYS.provider]:provider});
 }
@@ -57,6 +93,18 @@ async function summarizeActiveTab(){
   setStatus("Reading page…");
 
   const page = await extractPageText(tab.id);
+  const url = page.url || tab.url;
+
+  const cached = await getCachedSummary({
+    provider,
+    language,
+    url
+  });
+
+  if (cached) {
+    setSummary(cached);
+    return;
+  }
 
   setStatus("Summarizing…");
 
@@ -72,6 +120,13 @@ async function summarizeActiveTab(){
     setStatus(resp?.error || "Failed to summarize.");
     return;
   }
+
+  await setCachedSummary({
+    provider,
+    language,
+    url,
+    summary: resp.summary
+  });
 
   setSummary(resp.summary);
 }
